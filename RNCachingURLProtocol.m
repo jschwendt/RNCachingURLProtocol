@@ -109,12 +109,30 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 + (BOOL)canInitWithRequest:(NSURLRequest *)request {
-    // only handle http requests we haven't marked with our header.
+    // only handle http requests we haven't marked with our header, are GET, and match the white list.
     if ([[[request URL] scheme] isEqualToString:@"http"] &&
-            ([request valueForHTTPHeaderField:RNCachingURLHeader] == nil)) {
+            ([request valueForHTTPHeaderField:RNCachingURLHeader] == nil) &&
+            [[request HTTPMethod] isEqualToString:@"GET"] &&
+            [self isRequestWhitelisted:request]) {
         return YES;
     }
     return NO;
+}
+
++ (BOOL)isRequestWhitelisted:(NSURLRequest*)request {
+    NSString *string = [[request URL] absoluteString];
+    
+    NSError *error = NULL;
+    BOOL found = NO;
+    for (NSString *pattern in _whiteListURLs) {
+        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
+        NSTextCheckingResult *result = [regex firstMatchInString:string options:NSMatchingAnchored range:NSMakeRange(0, string.length)];
+        if (result.numberOfRanges) {
+            return YES;
+        }
+    }
+    
+    return found;
 }
 
 + (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)request {
@@ -216,7 +234,7 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data {
-    [[self client] URLProtocol:self didLoadData:data];
+    [[self client] URLProtocol:self didLoadData:data];    
     [self appendData:data];
 }
 
@@ -235,11 +253,6 @@ static RNCacheListStore *_cacheListStore = nil;
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection {
     [[self client] URLProtocolDidFinishLoading:self];
 
-    // no need to cache
-    if (![self isWhiteListed] || ![[[self request] HTTPMethod] isEqualToString:@"GET"]) {
-        return;
-    }
-
     NSString *cachePath = [self cachePathForRequest:[self request]];
     RNCachedData *cache = [RNCachedData new];
     [cache setResponse:[self response]];
@@ -254,31 +267,12 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 - (BOOL)useCache {
-    if (![self isWhiteListed] || ![[[self request] HTTPMethod] isEqualToString:@"GET"]) {
-        return NO;
-    }
     BOOL reachable = (BOOL) [[Reachability reachabilityWithHostName:[[[self request] URL] host]] currentReachabilityStatus] != NotReachable;
     if (!reachable) {
         return YES;
     } else {
         return ![self isCacheExpired];
     }
-}
-
-- (BOOL)isWhiteListed {
-    NSString *string = [[[self request] URL] absoluteString];
-
-    NSError *error = NULL;
-    BOOL found = NO;
-    for (NSString *pattern in _whiteListURLs) {
-        NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
-        NSTextCheckingResult *result = [regex firstMatchInString:string options:NSMatchingAnchored range:NSMakeRange(0, string.length)];
-        if (result.numberOfRanges) {
-            return YES;
-        }
-    }
-
-    return found;
 }
 
 - (NSArray *)cacheMeta {
