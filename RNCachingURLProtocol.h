@@ -66,6 +66,8 @@
 
 + (NSMutableArray *)whiteListURLs;
 
++ (NSMutableArray *)foreverCacheURLs;
+
 + (void)removeCache;
 
 + (NSData *)dataForURL:(NSString *)url;

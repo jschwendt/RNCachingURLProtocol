@@ -68,6 +68,7 @@ static NSString *RNCachingPlistFile = @"RNCache.plist";
 
 static NSMutableDictionary *_expireTime = nil;
 static NSMutableArray *_whiteListURLs = nil;
+static NSMutableArray *_foreverCacheURLs = nil;
 static RNCacheListStore *_cacheListStore = nil;
 
 @implementation RNCachingURLProtocol
@@ -108,6 +109,14 @@ static RNCacheListStore *_cacheListStore = nil;
     return _whiteListURLs;
 }
 
++ (NSMutableArray *)foreverCacheURLs {
+    if (_foreverCacheURLs == nil) {
+        _foreverCacheURLs = [NSMutableArray array];
+    }
+    
+    return _foreverCacheURLs;
+}
+
 + (BOOL)canInitWithRequest:(NSURLRequest *)request {
     // only handle http requests we haven't marked with our header, are GET, and match the white list.
     if ([[[request URL] scheme] isEqualToString:@"http"] &&
@@ -119,12 +128,12 @@ static RNCacheListStore *_cacheListStore = nil;
     return NO;
 }
 
-+ (BOOL)isRequestWhitelisted:(NSURLRequest*)request {
++ (BOOL)isRequest:(NSURLRequest*)request inRegexArray:(NSArray*)regexArray {
     NSString *string = [[request URL] absoluteString];
     
     NSError *error = NULL;
     BOOL found = NO;
-    for (NSString *pattern in _whiteListURLs) {
+    for (NSString *pattern in regexArray) {
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
         NSTextCheckingResult *result = [regex firstMatchInString:string options:NSMatchingAnchored range:NSMakeRange(0, string.length)];
         if (result.numberOfRanges) {
@@ -133,6 +142,14 @@ static RNCacheListStore *_cacheListStore = nil;
     }
     
     return found;
+}
+
++ (BOOL)isRequestWhitelisted:(NSURLRequest*)request {
+    return [self isRequest:request inRegexArray:_whiteListURLs];
+}
+
++ (BOOL)isRequestForeverCached:(NSURLRequest*)request {
+    return [self isRequest:request inRegexArray:_foreverCacheURLs];
 }
 
 + (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)request {
@@ -267,6 +284,15 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 - (BOOL)useCache {
+    
+    // Check if it's forever cached and use it immediately if we have it
+    if ([RNCachingURLProtocol isRequestForeverCached:self.request]) {
+        NSArray *meta = [self cacheMeta];
+        if (meta != nil) {
+            return YES;
+        }
+    }
+    
     BOOL reachable = (BOOL) [[Reachability reachabilityWithHostName:[[[self request] URL] host]] currentReachabilityStatus] != NotReachable;
     if (!reachable) {
         return YES;
