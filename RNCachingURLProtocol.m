@@ -525,10 +525,23 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 
 - (void)saveCacheDictionary {
     dispatch_barrier_async(_queue, ^{
-        [_dict writeToFile:_path atomically:YES];
-#if !(defined RNCACHING_DISABLE_LOGGING)
-        NSLog(@"[RNCachingURLProtocol] cache list persisted.");
-#endif
+        NSError *error = nil;
+        NSData *data = [NSPropertyListSerialization dataWithPropertyList:_dict
+                                                                  format:NSPropertyListBinaryFormat_v1_0
+                                                                 options:0
+                                                                   error:&error];
+        if (data) {
+            [data writeToFile:_path atomically:YES];
+            
+            #if !(defined RNCACHING_DISABLE_LOGGING)
+            NSLog(@"[RNCachingURLProtocol] cache list persisted.");
+            #endif
+        } else {
+            #if !(defined RNCACHING_DISABLE_LOGGING)
+            NSLog(@"[RNCachingURLProtocol] error persisting cache list: %@", error);
+            #endif
+        }
+
     });
 }
 
