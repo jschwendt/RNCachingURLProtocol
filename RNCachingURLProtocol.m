@@ -45,6 +45,7 @@
 
 static NSString *RNCachingURLHeader = @"X-RNCache";
 static NSString *RNCachingPlistFile = @"RNCache.plist";
+static NSString *RNCachingFolder = @"RNCaching";
 
 @interface RNCacheListStore : NSObject
 - (id)initWithPath:(NSString *)path;
@@ -70,6 +71,7 @@ static NSMutableDictionary *_expireTime = nil;
 static NSMutableArray *_whiteListURLs = nil;
 static NSMutableArray *_foreverCacheURLs = nil;
 static RNCacheListStore *_cacheListStore = nil;
+static RNCacheListStore *_bundleCacheListStore = nil;
 
 @implementation RNCachingURLProtocol
 @synthesize connection = connection_;
@@ -79,9 +81,18 @@ static RNCacheListStore *_cacheListStore = nil;
 + (RNCacheListStore *)cacheListStore {
     @synchronized (self) {
         if (_cacheListStore == nil) {
-            _cacheListStore = [[RNCacheListStore alloc] initWithPath:[self cachePathForKey:RNCachingPlistFile]];
+            _cacheListStore = [[RNCacheListStore alloc] initWithPath:[self cachePathForKey:RNCachingPlistFile useBundle:NO]];
         }
         return _cacheListStore;
+    }
+}
+
++ (RNCacheListStore *)bundleCacheListStore {
+    @synchronized (self) {
+        if (_bundleCacheListStore == nil) {
+            _bundleCacheListStore = [[RNCacheListStore alloc] initWithPath:[self cachePathForKey:RNCachingPlistFile useBundle:YES]];
+        }
+        return _bundleCacheListStore;
     }
 }
 
@@ -159,7 +170,7 @@ static RNCacheListStore *_cacheListStore = nil;
 + (void)removeCache {
     [[self cacheListStore] clear];
     NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
-    NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:@"RNCaching"];
+    NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:RNCachingFolder];
     [[NSFileManager defaultManager] removeItemAtPath:offlineCachePath error:nil];
 }
 
@@ -170,15 +181,35 @@ static RNCacheListStore *_cacheListStore = nil;
     }
 }
 
-+ (NSString *)cachePathForKey:(NSString *)key {
-    NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
-    NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:@"RNCaching"];
-    [[NSFileManager defaultManager] createDirectoryAtPath:offlineCachePath withIntermediateDirectories:YES attributes:nil error:nil];
-    return [offlineCachePath stringByAppendingPathComponent:key];
++ (NSString*)cacheKeyForRequest:(NSURLRequest*)request {
+    return [self cacheKeyForString:[request.URL absoluteString]];
+}
+
++ (NSString*)cacheKeyForString:(NSString*)urlString {
+    return [NSString stringWithFormat:@"%x", [urlString hash]];
+}
+
++ (NSString *)cachePathForKey:(NSString *)key useBundle:(BOOL)useBundle {
+    
+    NSString *result = nil;
+    if (useBundle) {
+        // Check the bundle first
+        result = [[NSBundle mainBundle] pathForResource:key ofType:nil inDirectory:RNCachingFolder];
+    }
+    
+    if (!result) {
+        NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
+        NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:RNCachingFolder];
+        [[NSFileManager defaultManager] createDirectoryAtPath:offlineCachePath withIntermediateDirectories:YES attributes:nil error:nil];
+        result = [offlineCachePath stringByAppendingPathComponent:key];
+    }
+    
+    return result;
 }
 
 + (NSData *)dataForURL:(NSString *)url {
-    NSString *file = [self cachePathForKey:[NSString stringWithFormat:@"%x", [url hash]]];
+    NSString *key = [self cacheKeyForString:url];
+    NSString *file = [self cachePathForKey:key useBundle:YES];
     RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:file];
     if (cache) {
         return [cache data];
@@ -187,13 +218,11 @@ static RNCacheListStore *_cacheListStore = nil;
     }
 }
 
-- (NSString *)cachePathForRequest:(NSURLRequest *)aRequest {
-    return [[self class] cachePathForKey:[NSString stringWithFormat:@"%x", [[[aRequest URL] absoluteString] hash]]];
-}
-
 - (void)startLoading {
     if ([self useCache]) {
-        RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:[self cachePathForRequest:[self request]]];
+        NSString *cacheKey = [RNCachingURLProtocol cacheKeyForRequest:self.request];
+        NSString *cachePath = [RNCachingURLProtocol cachePathForKey:cacheKey useBundle:YES];
+        RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:cachePath];
         if (cache) {
             NSData *data = [cache data];
             NSURLResponse *response = [cache response];
@@ -237,7 +266,8 @@ static RNCacheListStore *_cacheListStore = nil;
         // must not be marked with our header.
         [redirectableRequest setValue:nil forHTTPHeaderField:RNCachingURLHeader];
 
-        NSString *cachePath = [self cachePathForRequest:[self request]];
+        NSString *cacheKey = [RNCachingURLProtocol cacheKeyForRequest:self.request];
+        NSString *cachePath = [RNCachingURLProtocol cachePathForKey:cacheKey useBundle:NO];
         RNCachedData *cache = [RNCachedData new];
         [cache setResponse:response];
         [cache setData:[self data]];
@@ -270,11 +300,12 @@ static RNCacheListStore *_cacheListStore = nil;
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection {
     [[self client] URLProtocolDidFinishLoading:self];
 
-    NSString *cachePath = [self cachePathForRequest:[self request]];
+    NSString *cacheKey = [RNCachingURLProtocol cacheKeyForRequest:self.request];
+    NSString *cachePath = [RNCachingURLProtocol cachePathForKey:cacheKey useBundle:NO];
     RNCachedData *cache = [RNCachedData new];
     [cache setResponse:[self response]];
     [cache setData:[self data]];
-    [[[self class] cacheListStore] setObject:@[[NSDate date], [self response].MIMEType] forKey:cachePath];
+    [[[self class] cacheListStore] setObject:@[[NSDate date], [self response].MIMEType] forKey:cacheKey];
 
     [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
 
@@ -302,7 +333,21 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 - (NSArray *)cacheMeta {
-    return [[[self class] cacheListStore] objectForKey:[self cachePathForRequest:[self request]]];
+    NSArray *result = nil;
+    
+    NSString *cacheKey = [RNCachingURLProtocol cacheKeyForRequest:self.request];
+    
+    if (cacheKey) {
+        // Look up in bundle store first
+        result = [[RNCachingURLProtocol bundleCacheListStore] objectForKey:cacheKey];
+        
+        if (!result) {
+            // Look in the writable store
+            result = [[RNCachingURLProtocol cacheListStore] objectForKey:cacheKey];
+        }
+    }
+    
+    return result;
 }
 
 - (BOOL)isCacheExpired {

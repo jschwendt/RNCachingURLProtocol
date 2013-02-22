@@ -72,13 +72,13 @@
 
 + (NSData *)dataForURL:(NSString *)url;
 
-- (NSString *)cachePathForRequest:(NSURLRequest *)aRequest;
+//- (NSString *)cachePathForRequest:(NSURLRequest *)aRequest useBundle:(BOOL)useBundle;
 
 - (BOOL)useCache;
 
 + (void)removeCacheOlderThan:(NSDate *)date;
 
-+ (NSString *)cachePathForKey:(NSString *)key;
++ (NSString *)cachePathForKey:(NSString *)key useBundle:(BOOL)useBundle;
 
 
 @end
