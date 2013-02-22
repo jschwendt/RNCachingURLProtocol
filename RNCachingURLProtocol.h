@@ -72,8 +72,6 @@
 
 + (NSData *)dataForURL:(NSString *)url;
 
-//- (NSString *)cachePathForRequest:(NSURLRequest *)aRequest useBundle:(BOOL)useBundle;
-
 - (BOOL)useCache;
 
 + (void)removeCacheOlderThan:(NSDate *)date;

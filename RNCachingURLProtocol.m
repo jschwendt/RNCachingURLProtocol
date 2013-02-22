@@ -43,9 +43,12 @@
 @property(nonatomic, readwrite, strong) NSDate *lastModifiedDate;
 @end
 
-static NSString *RNCachingURLHeader = @"X-RNCache";
-static NSString *RNCachingPlistFile = @"RNCache.plist";
-static NSString *RNCachingFolder = @"RNCaching";
+static NSString * const RNCachingURLHeader = @"X-RNCache";
+static NSString * const RNCachingPlistFile = @"RNCacheV2.plist";
+static NSString * const RNCachingFolder = @"RNCaching";
+static NSString * const RNCachingDateKey = @"date";
+static NSString * const RNCachingMimeTypeKey = @"mimeType";
+static NSString * const RNCachingURLKey = @"url";
 
 @interface RNCacheListStore : NSObject
 - (id)initWithPath:(NSString *)path;
@@ -305,7 +308,8 @@ static RNCacheListStore *_bundleCacheListStore = nil;
     RNCachedData *cache = [RNCachedData new];
     [cache setResponse:[self response]];
     [cache setData:[self data]];
-    [[[self class] cacheListStore] setObject:@[[NSDate date], [self response].MIMEType] forKey:cacheKey];
+    NSDictionary *cacheEntry = @{RNCachingDateKey:[NSDate date], RNCachingMimeTypeKey:self.response.MIMEType, RNCachingURLKey:self.request.URL.absoluteString};
+    [[[self class] cacheListStore] setObject:cacheEntry forKey:cacheKey];
 
     [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
 
@@ -318,7 +322,7 @@ static RNCacheListStore *_bundleCacheListStore = nil;
     
     // Check if it's forever cached and use it immediately if we have it
     if ([RNCachingURLProtocol isRequestForeverCached:self.request]) {
-        NSArray *meta = [self cacheMeta];
+        NSDictionary *meta = [self cacheMeta];
         if (meta != nil) {
             return YES;
         }
@@ -332,8 +336,8 @@ static RNCacheListStore *_bundleCacheListStore = nil;
     }
 }
 
-- (NSArray *)cacheMeta {
-    NSArray *result = nil;
+- (NSDictionary *)cacheMeta {
+    NSDictionary *result = nil;
     
     NSString *cacheKey = [RNCachingURLProtocol cacheKeyForRequest:self.request];
     
@@ -351,13 +355,13 @@ static RNCacheListStore *_bundleCacheListStore = nil;
 }
 
 - (BOOL)isCacheExpired {
-    NSArray *meta = [self cacheMeta];
+    NSDictionary *meta = [self cacheMeta];
     if (meta == nil) {
         return YES;
     }
 
-    NSDate *modifiedDate = meta[0];
-    NSString *mimeType = meta[1];
+    NSDate *modifiedDate = meta[RNCachingDateKey];
+    NSString *mimeType = meta[RNCachingMimeTypeKey];
 
     BOOL expired = YES;
 
@@ -482,7 +486,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
     __block NSSet *keysToDelete;
     dispatch_sync(_queue, ^{
         keysToDelete = [_dict keysOfEntriesPassingTest:^BOOL(id key, id obj, BOOL *stop) {
-            NSDate *d = ((NSArray *) obj)[0];
+            NSDate *d = ((NSDictionary *) obj)[RNCachingDateKey];
             return [d compare:date] == NSOrderedAscending;
         }];
     });
