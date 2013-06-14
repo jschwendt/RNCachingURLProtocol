@@ -26,5 +26,5 @@ Pod::Spec.new do |s|
   s.source_files =  'RNCachingURLProtocol.{m,h}'
 
   s.framework        =  'SystemConfiguration'
-  s.dependency = 'Reachability'
+  s.dependency 'Reachability'
 end
