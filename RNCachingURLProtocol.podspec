@@ -23,7 +23,8 @@ Pod::Spec.new do |s|
   s.platform = :ios, '4.0'
   s.requires_arc = true
 
-  s.source_files =  'RNCachingURLProtocol.{m,h}', 'Reachability.{m,h}'
+  s.source_files =  'RNCachingURLProtocol.{m,h}'
 
   s.framework        =  'SystemConfiguration'
+  s.dependency = 'Reachability'
 end
