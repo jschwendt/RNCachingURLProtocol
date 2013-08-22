@@ -18,7 +18,7 @@ Pod::Spec.new do |s|
                      TXT
                      }
   s.author       = { "Rob Napier/Joe Schwendt" => "robnapier@gmail.com/joe@schwendt.com" }
-  s.source       = { :git => "https://github.com/jschwendt/RNCachingURLProtocol.git", :commit => "b9cc7174df5f57da242faabc5b94f0aaee10fb02" }
+  s.source       = { :git => "https://github.com/jschwendt/RNCachingURLProtocol.git", :commit => "ac7ebfa712d13b3817de8a85b8521722d5823b0c" }
 
   s.platform = :ios, '4.0'
   s.requires_arc = true
