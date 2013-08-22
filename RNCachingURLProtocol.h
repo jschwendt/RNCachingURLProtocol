@@ -4,6 +4,9 @@
 //  Created by Robert Napier on 1/10/12.
 //  Copyright (c) 2012 Rob Napier. All rights reserved.
 //
+//  Forked by Joe Schwendt on 8/22/13
+//  Copyright (c) 2013 Joe Schwendt. All rights reserved.
+//
 //  This code is licensed under the MIT License:
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a
@@ -24,57 +27,74 @@
 //  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 //  DEALINGS IN THE SOFTWARE.
 //
-
-// RNCachingURLProtocol is a simple shim for the HTTP protocol (that’s not
-// nearly as scary as it sounds). Anytime a URL is download, the response is
-// cached to disk. Anytime a URL is requested, if we’re online then things
-// proceed normally. If we’re offline, then we retrieve the cached version.
+//RNCachingURLProtocol is a simple shim for the HTTP protocol (that’s not
+//nearly as scary as it sounds). Anytime a URL is downloaded, the response is
+//cached to disk. Anytime a URL is requested, if we’re online then things
+//proceed normally. If we’re offline, then we retrieve the cached version.
 //
-// The point of RNCachingURLProtocol is mostly to demonstrate how this is done.
-// The current implementation is extremely simple. In particular, it doesn’t
-// worry about cleaning up the cache. The assumption is that you’re caching just
-// a few simple things, like your “Latest News” page (which was the problem I
-// was solving). It caches all HTTP traffic, so without some modifications, it’s
-// not appropriate for an app that has a lot of HTTP connections (see
-// MKNetworkKit for that). But if you need to cache some URLs and not others,
-// that is easy to implement.
+//This fork of RNCachingURLProtocol supports selective caching as well as the
+//ability to set staleness and expiration times by mime type.  When a cached item
+//becomes stale, it will be treated as a cache hit when the device is offline, but
+//a miss when it's online.  Items will remain in the cache until they expire and
+//are removed.  A convenience method "removeExpiredCacheItems" can be scheduled and
+//will clean up expired items on a background thread.
 //
-// You should also look at [AFCache](https://github.com/artifacts/AFCache) for a
-// more powerful caching engine that is currently integrating the ideas of
-// RNCachingURLProtocol.
+//The Whitelist and Blacklist are meant to work together or alone.  When a URL is processed,
+//it is first matched to see if it exists on the Whitelist.  If the Whitelist is empty,
+//all URLs are essentially Whitelisted.  Items matched on the Whitelist will then try to be
+//matched on the Blacklist.  If the item is matched on the Blacklist, it will not be cached.
+//Assuming it passes through both the Whitelist and Blacklist checks, then it will be cached.
+//Note that the lists are Regular Expression patterns which must be escaped appropriately.
 //
-// A quick rundown of how to use it:
+//1. To build, you will need the Reachability code from Apple (included). That requires that you link with
+//`SystemConfiguration.framework`.
 //
-// 1. To build, you will need the Reachability code from Apple (included). That requires that you link with
-//    `SystemConfiguration.framework`.
+//2. At some point early in the program (usually `application:didFinishLaunchingWithOptions:`),
+//call the following:
 //
-// 2. At some point early in the program (application:didFinishLaunchingWithOptions:),
-//    call the following:
+//`[NSURLProtocol registerClass:[RNCachingURLProtocol class]];`
 //
-//      `[NSURLProtocol registerClass:[RNCachingURLProtocol class]];`
+//3. Optionally add Whitelist/Blacklist URLs patterns.  Note that Blacklisted URL patterns are evaluated after Whitelisted patterns are.
 //
-// 3. There is no step 3.
+//`[RNCachingURLProtocol addWhiteListURLWithPattern:@"github\\.org"];`
+//`[RNCachingURLProtocol addWhiteListURLWithPattern:@"wikipedia\\.org"];`
+//`[RNCachingURLProtocol addBlackListURLWithPattern:@"upload\\.wikipedia\\.org"];`
 //
-// For more details see
-//    [Drop-in offline caching for UIWebView (and NSURLProtocol)](http://robnapier.net/blog/offline-uiwebview-nsurlprotocol-588).
+//4. Optionally remove expired cached items on a regular basis
+//
+//`[NSTimer scheduledTimerWithTimeInterval:(5*60) target:[RNCachingURLProtocol class] selector:@selector(removeExpiredCacheItems) userInfo:nil repeats:YES];`
+//
+// The strategy for caching will be as follows:
+// URLs will be parsed to ensure that they match against the WhiteList but do not match against the BlackList
+// Once we're able to proceed, we look to see if we currently have the item cached.
+// If so, we validate that it's within the staleness window.  If it is, we just return from the cache
+// If it is beyond the staneless boundary and the device is online, we attempt to fetch it again and update our cache
+// If the device is offline, we return the cache value
 
 #import <Foundation/Foundation.h>
+
+#define RNCACHING_DISABLE_LOGGING
 
 @interface RNCachingURLProtocol : NSURLProtocol
 
 + (NSMutableDictionary *)expireTime;
++ (NSMutableDictionary *)stalenessTime;
 
 + (NSMutableArray *)whiteListURLs;
++ (NSMutableArray *)blackListURLs;
 
-+ (NSMutableArray *)foreverCacheURLs;
++ (void)addWhiteListURLWithPattern:(NSString *)pattern;
++ (void)addBlackListURLWithPattern:(NSString *)pattern;
 
-+ (void)removeCache;
++ (NSData *)dataForURL:(NSString *)url;
+
+- (NSString *)cachePathForRequest:(NSURLRequest *)aRequest;
++ (NSString *)cachePathForKey:(NSString *)key;
 
 - (BOOL)useCache;
 
++ (void)removeCache;
 + (void)removeCacheOlderThan:(NSDate *)date;
-
-+ (NSString *)cachePathForKey:(NSString *)key inBundle:(BOOL)inBundle;
-
++ (void)removeExpiredCacheItems;
 
 @end

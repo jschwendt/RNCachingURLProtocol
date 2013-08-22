@@ -1,11 +1,11 @@
 Pod::Spec.new do |s|
   s.name         = "RNCachingURLProtocol"
-  s.version      = "0.0.1"
-  s.summary      = "Simple offline caching for UIWebView and other NSURLConnection clients."
+  s.version      = "1.0"
+  s.summary      = "Offline caching for UIWebView and other NSURLConnection clients."
   s.description  = <<-DESC
 	RNCachingURLProtocol is a simple shim for the HTTP protocol (that’s not nearly as scary as it sounds). Anytime a URL is downloaded, the response is cached to disk. Anytime a URL is requested, if we’re online then things proceed normally. If we’re offline, then we retrieve the cached version.
                    DESC
-  s.homepage     = "https://github.com/rnapier/RNCachingURLProtocol"
+  s.homepage     = "https://github.com/jschwendt/RNCachingURLProtocol"
   s.license      = { :type => 'MIT',
 		     :text => <<-TXT
 	This code is licensed under the MIT License:
@@ -17,8 +17,8 @@ Pod::Spec.new do |s|
 	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
                      TXT
                      }
-  s.author       = { "Rob Napier" => "robnapier@gmail.com" }
-  s.source       = { :git => "https://github.com/rnapier/RNCachingURLProtocol.git", :commit => "b9cc7174df5f57da242faabc5b94f0aaee10fb02" }
+  s.author       = { "Rob Napier/Joe Schwendt" => "robnapier@gmail.com/joe@schwendt.com" }
+  s.source       = { :git => "https://github.com/jschwendt/RNCachingURLProtocol.git", :commit => "b9cc7174df5f57da242faabc5b94f0aaee10fb02" }
 
   s.platform = :ios, '4.0'
   s.requires_arc = true

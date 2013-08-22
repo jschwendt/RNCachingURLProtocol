@@ -5,30 +5,39 @@ nearly as scary as it sounds). Anytime a URL is downloaded, the response is
 cached to disk. Anytime a URL is requested, if we’re online then things
 proceed normally. If we’re offline, then we retrieve the cached version.
 
-The point of RNCachingURLProtocol is mostly to demonstrate how this is done.
-The current implementation is extremely simple. In particular, it doesn’t
-worry about cleaning up the cache. The assumption is that you’re caching just
-a few simple things, like your “Latest News” page (which was the problem I
-was solving). It caches all HTTP traffic, so without some modifications, it’s
-not appropriate for an app that has a lot of HTTP connections (see
-MKNetworkKit for that). But if you need to cache some URLs and not others,
-that is easy to implement.
+This fork of RNCachingURLProtocol supports selective caching as well as the 
+ability to set staleness and expiration times by mime type.  When a cached item
+becomes stale, it will be treated as a cache hit when the device is offline, but
+a miss when it's online.  Items will remain in the cache until they expire and
+are removed.  A convenience method "removeExpiredCacheItems" can be scheduled and
+will clean up expired items on a background thread.
 
-You should also look at [AFCache](https://github.com/artifacts/AFCache) for a
-more powerful caching engine that is currently integrating the ideas of
-RNCachingURLProtocol.
+The Whitelist and Blacklist are meant to work together or alone.  When a URL is processed,
+it is first matched to see if it exists on the Whitelist.  If the Whitelist is empty,
+all URLs are essentially Whitelisted.  Items matched on the Whitelist will then try to be
+matched on the Blacklist.  If the item is matched on the Blacklist, it will not be cached.
+Assuming it passes through both the Whitelist and Blacklist checks, then it will be cached.
+Note that the lists are Regular Expression patterns which must be escaped appropriately.
 
 # USAGE
 
 1. To build, you will need the Reachability code from Apple (included). That requires that you link with
-   `SystemConfiguration.framework`.
+	`SystemConfiguration.framework`.
 
 2. At some point early in the program (usually `application:didFinishLaunchingWithOptions:`),
    call the following:
 
-      `[NSURLProtocol registerClass:[RNCachingURLProtocol class]];`
+	`[NSURLProtocol registerClass:[RNCachingURLProtocol class]];`
 
-3. There is no step 3.
+3. Optionally add Whitelist/Blacklist URLs patterns.  Note that Blacklisted URL patterns are evaluated after Whitelisted patterns are.
+
+	`[RNCachingURLProtocol addWhiteListURLWithPattern:@"github\\.org"];`
+	`[RNCachingURLProtocol addWhiteListURLWithPattern:@"wikipedia\\.org"];`
+	`[RNCachingURLProtocol addBlackListURLWithPattern:@"upload\\.wikipedia\\.org"];`
+
+4. Optionally remove expired cached items on a regular basis
+
+	`[NSTimer scheduledTimerWithTimeInterval:(5*60) target:[RNCachingURLProtocol class] selector:@selector(removeExpiredCacheItems) userInfo:nil repeats:YES];`
 
 For more details see
    [Drop-in offline caching for UIWebView (and NSURLProtocol)](http://robnapier.net/blog/offline-uiwebview-nsurlprotocol-588).
@@ -36,6 +45,8 @@ For more details see
 # EXAMPLE
 
 See the CachedWebView project for example usage.
+
+You can turn debug messages on by commenting out this line in the .h: #define RNCACHING_DISABLE_LOGGING
 
 # LICENSE
 
